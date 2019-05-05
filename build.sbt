@@ -16,6 +16,7 @@ lazy val modules: List[ProjectReference] = List(
   blazeCore,
   blazeServer,
   blazeClient,
+  finagleClient,
   asyncHttpClient,
   jettyClient,
   okHttpClient,
@@ -215,6 +216,16 @@ lazy val asyncHttpClient = libraryProject("async-http-client")
     libraryDependencies ++= Seq(
       Http4sPlugin.asyncHttpClient,
       fs2ReactiveStreams
+    )
+  )
+  .dependsOn(core, testing % "test->test", client % "compile;test->test")
+
+lazy val finagleClient = libraryProject("finagle-client")
+  .settings(crossScalaAll)
+  .settings(
+    description := "finagle http client implementation for http4s clients",
+    libraryDependencies ++= Seq(
+      Http4sPlugin.finagle
     )
   )
   .dependsOn(core, testing % "test->test", client % "compile;test->test")
