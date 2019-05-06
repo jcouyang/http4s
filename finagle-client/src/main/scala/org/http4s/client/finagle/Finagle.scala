@@ -5,9 +5,10 @@ package finagle
 import cats.effect._
 import cats.syntax.functor._
 import com.twitter.finagle.{Http,Service}
-import com.twitter.finagle.http.{Request => Req, Response=>Resp, Version, Method}
+import com.twitter.finagle.http.{Request => Req, Response=>Resp, Version, Method, RequestBuilder}
 import com.twitter.util.{Return, Throw, Future}
 import java.io.PipedInputStream
+import fs2.io._
 
 object Finagle {
 
@@ -22,14 +23,15 @@ object Finagle {
     Resource.make(F.delay(Http.newService(dest))){svc => toF(svc.close())}
     .flatMap(svc => Resource.liftF(allocate(svc)))
   }
-  def toFinagleReq[F[_]](req: Request[F]):Req = {
+  def toFinagleReq[F[_]](req: Request[F]):F[Req] = {
     val httpVersion = req.httpVersion match {
       case HttpVersion.`HTTP/1.0` => Version.Http10
       case _ => Version.Http11
     }
     val method = Method(req.method.name)
     val stream = new PipedInputStream()
-    Req(httpVersion, method, req.uri)
+    val finagleReq = RequestBuilder().url(req.uri).addHeaders(req.headers)
+    req.body.through(toInputStream).compile.toList.headOption.map(finagleReq.build(method, _))
   }
 
   def toHttp4sResp[F[_]](resp: Resp): Response[F] = ???
