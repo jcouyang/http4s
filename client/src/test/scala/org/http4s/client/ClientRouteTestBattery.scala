@@ -18,8 +18,8 @@ abstract class ClientRouteTestBattery(name: String) extends Http4sSpec with Http
   val timeout = 20.seconds
   var address: InetSocketAddress = null
 
+  def clientResourceGen: String => Resource[IO, Client[IO]] = _ => clientResource
   def clientResource: Resource[IO, Client[IO]]
-
   def testServlet = new HttpServlet {
     override def doGet(req: HttpServletRequest, srv: HttpServletResponse): Unit =
       GetRoutes.getPaths.get(req.getRequestURI) match {
@@ -36,9 +36,8 @@ abstract class ClientRouteTestBattery(name: String) extends Http4sSpec with Http
   }
 
   withResource(JettyScaffold[IO](1, false, testServlet)) { jetty =>
-    withResource(clientResource) { client =>
+    withResource(clientResourceGen(s"${jetty.addresses.head.getHostName}:${jetty.addresses.head.getPort}")) { client =>
       val address = jetty.addresses.head
-
       Fragments.foreach(GetRoutes.getPaths.toSeq) {
         case (path, expected) =>
           s"Execute GET: $path" in {
