@@ -88,9 +88,11 @@ abstract class ClientRouteTestBattery(name: String) extends Http4sSpec with Http
         }
 
         "POST a chunked body" in {
-          val uri = Uri.fromString(s"http://${address.getHostName}:${address.getPort}/echo").yolo
+         val uri = Uri.fromString(s"http://${address.getHostName}:${address.getPort}/echo").yolo
           val req = POST(Stream("This is chunked.").covary[IO], uri)
-          val body = client.expect[String](req)
+          val body = client.expectOr[String](req)(resp=>
+            resp.as[String].map(new Exception(_))
+          )
           body must returnValue("This is chunked.")
         }
 

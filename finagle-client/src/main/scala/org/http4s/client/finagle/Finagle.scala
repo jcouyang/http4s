@@ -24,8 +24,11 @@ object Finagle {
         })
 
   def resource[F[_]](dest: String)(
+    implicit F: ConcurrentEffect[F]): Resource[F, Client[F]] = resource(Http.newService(dest))
+
+  def resource[F[_]](svc: Service[Req, Resp])(
     implicit F: ConcurrentEffect[F]): Resource[F, Client[F]] = {
-    Resource.make(F.delay(Http.newService(dest))){_ => F.delay(())}
+    Resource.make(F.delay(svc)){_ => F.delay(())}
     .flatMap(svc => Resource.liftF(allocate(svc)))
   }
   def toFinagleReq[F[_]](req: Request[F])(implicit F: ConcurrentEffect[F]):F[Req] = {
@@ -34,23 +37,30 @@ object Finagle {
     val reqBuilder = RequestBuilder().url(req.uri.toString)
     .addHeaders(reqheaders)
     (method, req.headers) match {
-      case (Method.Get, _) => F.delay(reqBuilder.buildGet)
+      case (Method.Get, _) =>
+        F.delay(reqBuilder.buildGet)
+      case (method, _) if req.isChunked =>
+        val request = reqBuilder.build(method, None)
+        request.headerMap.remove("Transfer-Encoding")
+        val writer = request.chunkWriter
+        request.setChunked(true)
+        val bodyUpdate = req.body.chunkN(1).map(_.toArray).evalMap{ a=>
+          val out = (writer.write(com.twitter.finagle.http.Chunk.fromByteArray(a)))
+          toF(out)
+        }.compile.drain.map(_ => toF((writer.close())))
+        ConcurrentEffect[F].runCancelable(bodyUpdate)(_=>IO.unit).unsafeRunSync
+        F.delay{request}
       case (Method.Post, _) if reqheaders.get("Content-Type").map{v =>
-        println("==-------")
-        println(v)
         v.take(19) == ("multipart/form-data")}.getOrElse(false) =>
-        println("===================")
                 req.as[Array[Byte]].map{_=>
-          val r = reqBuilder
+                  reqBuilder
             .addFormElement(("text","This is text."))
             .buildFormPost(true)
-                  r
                 }
+
       case (Method.Post, _) =>
         req.as[Array[Byte]].map{b=>
-          val r = reqBuilder.buildPost(Buf.ByteArray.Owned(b))
-          r.setChunked(req.isChunked)
-          r
+          reqBuilder.buildPost(Buf.ByteArray.Owned(b))
         }
       case (m, _) =>  F.delay(reqBuilder.build(m, None))
     }
@@ -60,11 +70,11 @@ object Finagle {
     def toStream(buf: Buf): Stream[F, Byte] = {
       Stream.chunk[F, Byte](Chunk.array(Buf.ByteArray.Owned.extract(buf)))
     }
-    println(s"--${resp.contentString}----${resp.version}---${resp.headerMap}---${resp.isChunked}-----")
-    Response[F](
+    val response = Response[F](
       status = Status(resp.status.code)
-    ).withEntity(toStream(resp.content))
-      .withHeaders(Headers(resp.headerMap.toList.map{case (name, value) => Header(name, value)}))
+    ).withHeaders(Headers(resp.headerMap.toList.map{case (name, value) => Header(name, value)}))
+      .withEntity(toStream(resp.content))
+    response
   }
 
   def toF[F[_], A](f: Future[A])(implicit F: Async[F]): F[A] = F.async{cb=>
