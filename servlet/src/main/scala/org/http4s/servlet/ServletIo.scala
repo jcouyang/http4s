@@ -46,12 +46,16 @@ final case class BlockingServletIo[F[_]: Effect: ContextShift](
     val out = servletResponse.getOutputStream
     val flush = response.isChunked
     response.body.chunks
-      .map { chunk =>
-        // Avoids copying for specialized chunks
-        val byteChunk = chunk.toBytes
-        out.write(byteChunk.values, byteChunk.offset, byteChunk.length)
-        if (flush)
-          servletResponse.flushBuffer()
+      .evalTap { chunk =>
+        ContextShift[F].evalOn(blockingExecutionContext)(
+          F.delay {
+            // Avoids copying for specialized chunks
+            val byteChunk = chunk.toBytes
+            out.write(byteChunk.values, byteChunk.offset, byteChunk.length)
+            if (flush)
+              servletResponse.flushBuffer()
+          }
+        )
       }
       .compile
       .drain

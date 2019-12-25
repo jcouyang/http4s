@@ -8,6 +8,240 @@ Maintenance branches are merged before each new release. This change log is
 ordered chronologically, so each release contains all changes described below
 it.
 
+# v0.20.15 (2019-11-27)
+
+## Enhancements
+
+* [#2966](https://github.com/http4s/http4s/pull/2966): Add `HttpsRedirect` middleware
+* [#2965](https://github.com/http4s/http4s/pull/2965): Add `Request#addCookies` method
+* [#2887](https://github.com/http4s/http4s/pull/2887): Support realm in the `OAuth1` header
+
+## Bug fixes
+
+* [#2916](https://github.com/http4s/http4s/pull/2916): Ensure that `Metrics` only decrements active requests once
+* [#2889](https://github.com/http4s/http4s/pull/2889): In `Logger`, log the prelude if `logBody` and `logHeaders` are false
+
+# v0.20.14 (2019-11-26)
+
+## Bug fixes
+
+* [#2909](https://github.com/http4s/http4s/pull/2909): Properly propagate streamed errors in jetty-client
+* The blaze upgrade fixes the "SSL Handshake WRAP produced 0 bytes" error on JDK 11.
+
+# Enhancements
+
+* [#2911](https://github.com/http4s/http4s/pull/2911): Add missing bincompat syntax to `org.http4s.implicits`
+
+## Dependency updates
+
+* blaze-0.14.11
+* circe-0.11.2
+* jawn-0.14.3
+* jetty-9.4.24.v20191120
+* tomcat-9.0.29
+
+# v0.20.13 (2019-11-05)
+
+## Bug fixes
+
+* [#2946](https://github.com/http4s/http4s/pull/2946): Restore binary compatibility of private `UrlCodingUtils`. [#2930](https://github.com/http4s/http4s/pull/2930) caused a breakage in rho.
+* [#2922](https://github.com/http4s/http4s/pull/2922): Handle Content-Length longer that Int.MaxValue in chunked uploads
+* [#2941](https://github.com/http4s/http4s/pull/2941): Fix for `BlockingHttp4sServlet` with shifted IO.
+* [#2953](https://github.com/http4s/http4s/pull/2953): Fix connection info in servlet backend.  The local and remote addresses were reversed.
+* [#2942](https://github.com/http4s/http4s/pull/2942): Fix `Request.addcookie` to consolidate all `Cookie` headers into one.
+* [#2957](https://github.com/http4s/http4s/pull/2957): Shift the write to Blocker in `BlockingServletIo`
+
+## Enhancements
+
+* [#2948](https://github.com/http4s/http4s/pull/2948): Add all missing `ContentCoding`s from the IANA registry.
+
+## Dependency updates
+
+* blaze-0.14.9
+
+# v0.20.12 (2019-10-31)
+
+## Enhancements
+
+* [#2930](https://github.com/http4s/http4s/pull/2830): Move private `UrlCodingUtils` to the `Uri` companion object, make public
+
+## Dependency updates
+
+* jawn-0.14.2
+* jetty-9.4.22
+* json4s-0.14.2
+* metrics-4.1.1
+* okhttp-3.14.4
+* play-json-2.7.4
+* tomcat-9.0.27
+* twirl-1.4.2
+
+# v0.20.11 (2019-09-19)
+
+## Breaking changes
+
+* * [#2792](https://github.com/http4s/http4s/pull/2792): Drop support for Scala 2.13.0-M5. Users of Scala 2.13 should be on a stable release of Scala on the http4s-0.21 release series.
+* * [#2800](https://github.com/http4s/http4s/pull/2800): Revert [#2785](https://github.com/http4s/http4s/pull/2785), using `F[A]` instead of `G[A]` in `EntityResponseGenerator`, which broke directives.
+
+## Bug fixes
+
+* [#2807](https://github.com/http4s/http4s/pull/2807): In jetty-client, don't follow redirects with the internal client, which throws an exception in the http4s wrapper.
+
+## Enhancements
+
+* [#2817](https://github.com/http4s/http4s/pull/2817): In jetty-client, disable internal client's default `Content-Type` to prevent default `application/octet-stream` for empty bodies.
+
+## Dependency updates
+
+* jetty-9.4.20
+
+# v0.20.10 (2019-08-14)
+
+## Breaking changes
+
+* [#2785](https://github.com/http4s/http4s/pull/2785): Use `F[A]` instead of `G[A]` in the DSL's `EntityResponseGenerator`. This change is binary compatible, but not source compatible for users of `Http4sDsl2` where `F` is not `G`. This is uncommon.
+
+## Bug fixes
+
+* [#2778](https://github.com/http4s/http4s/pull/2778): Don't truncate signing keys in CSRF middleware to 20 bytes, which causes a loss of entropy.
+
+## Enhancements
+
+* [#2776](https://github.com/http4s/http4s/pull/2776): Add `MaxActiveRequest` middleware
+* [#2724](https://github.com/http4s/http4s/pull/2724): Add `QueryParamEncoder[Instant]` and `QueryParamDecoder[Instant]`. Introduce `QueryParamCodec` for convenience.
+* [#2777](https://github.com/http4s/http4s/pull/2777): Handle invalid `Content-Range` requests with a 416 response and `Accept-Range` header.
+
+# v0.20.9 (2019-08-07)
+
+## Bug fixes
+
+* [#2761](https://github.com/http4s/http4s/pull/2761): In blaze-client, don't add `ResponseHeaderTimeoutStage` when `responseHeaderTimeout` is infinite. This prevents an `IllegalArgumentException` when debug logging is turned on.
+* [#2762](https://github.com/http4s/http4s/pull/2762): Fix text in warnings when blaze-client timeouts are questionably ordered.
+
+# v0.20.8 (2019-08-02)
+
+## Enhancements
+
+* [#2550](https://github.com/http4s/http4s/pull/2550): Adjust default timeouts and add warnings about misconfiguration
+
+## Dependency updates
+
+* blaze-0.14.8
+* cats-effect-1.4.0
+
+# v0.20.7 (2019-07-30)
+
+## Bug fixes
+* [#2728](https://github.com/http4s/http4s/pull/2728): Preserve division of `request.uri.path` into `scriptName` and `pathInfo` when calling `withPathInfo`.
+* [#2737](https://github.com/http4s/http4s/pull/2737): Fix deadlock in blaze-server web socket shutdown.
+
+## Enhancements
+* [#2736](https://github.com/http4s/http4s/pull/2736): Implement a `connectTimeout` in blaze-client, defaulted to 10 seconds.  Prevents indefinite hangs on non-responsive hosts.
+
+## Documentation
+* [#2741](https://github.com/http4s/http4s/pull/2741): Improve docs surrounding auth middleware and fall through.
+
+## Dependency upgrades
+- blaze-0.14.7
+- tomcat-9.0.22
+
+# v0.20.6 (2019-07-09)
+
+## Bug fixes
+* [#2705](https://github.com/http4s/http4s/pull/2705): Upgrades blaze to close `SSLEngine` when an `SSLStage` shuts down. This is useful in certain `SSLContext` implementations.  See [blaze#305](https://github.com/http4s/blaze/pull/305) for more.
+
+## Dependency upgrades
+- blaze-0.14.6
+
+~~# v0.20.5 (2019-07-09)~~
+
+Cursed release.  Sonatype staging repo closed in flight.
+
+# v0.20.4 (2019-07-06)
+
+## Bug fixes
+* [#2687](https://github.com/http4s/http4s/pull/2687): Don't throw in `Uri.fromString` on invalid ports
+* [#2695](https://github.com/http4s/http4s/pull/2695): Handle EOF in blaze-server web socket by shutting down stage
+
+## Enhancements
+* [#2673](https://github.com/http4s/http4s/pull/2673): Add `GZip` middleware for client
+
+## Documentation
+* [#2668](https://github.com/http4s/http4s/pull/2668): Clarifications in `Uri.Scheme` scaladoc
+
+## Dependency upgrades
+- blaze-0.14.5
+- jetty-9.14.19.v20190610 (for client)
+
+# v0.20.3 (2019-06-12)
+
+## Bug fixes
+* [#2638](https://github.com/http4s/http4s/pull/2638): Fix leaking sensitive headers in server RequestLogger
+
+# v0.18.24 (2019-06-12)
+
+## Bug fixes
+* [#2639](https://github.com/http4s/http4s/pull/2639): Fix leaking sensitive headers in server RequestLogger
+
+## Dependency updates
+- cats-1.6.1
+- jetty-9.4.19.v20190610
+- tomcat-9.0.21
+
+# v0.20.2 (2019-06-12)
+
+## Bug fixes
+* [#2604](https://github.com/http4s/http4s/pull/2604): Defer creation of `SSLContext.getDefault()` in blaze-client
+* [#2611](https://github.com/http4s/http4s/pull/2611): Raise errors with `getResource()` into effect in `StaticFile`
+
+## Enhancements
+* [#2567](https://github.com/http4s/http4s/pull/2567): Add `mapK` to `AuthedRequest`.  Deprecate `AuthedService` in favor of `AuthedRoutes`.
+
+## Internals
+* [#2579](https://github.com/http4s/http4s/pull/2579): Skip Travis CI on tags
+
+## Dependency updates
+* blaze-0.14.4
+* cats-core-1.6.1
+* cats-effect-1.3.1
+* fs2-1.0.5 (except Scala 2.13.0-M5)
+* okhttp-3.14.2
+* tomcat-9.0.21
+
+# v0.20.1 (2019-05-16)
+
+Users of blaze-client are strongly urged to upgrade.  This patch fixes a bug and passes new tests, but we still lack 100% confidence in it.  The async-http-client backend has proven stable for a large number of users.
+
+## Bug fixes
+* [#2562](https://github.com/http4s/http4s/pull/2562): Fix issue in `PoolManager` that causes hung requests in blaze-client.
+* [#2571](https://github.com/http4s/http4s/pull/2571): Honor `If-None-Match` request header in `StaticFile`
+
+## Enhancements
+* [#2532](https://github.com/http4s/http4s/pull/2532): Add queue limit to log message when client wait queue is full
+* [#2535](https://github.com/http4s/http4s/pull/2535): Add `translate` to `HttpRoutes` and `HttpApp`
+
+## Documentation
+* [#2533](https://github.com/http4s/http4s/pull/2533): Fix link to Metrics middleware
+* [#2538](https://github.com/http4s/http4s/pull/2538): Add @MartinSnyder's presentation, update giter8 instructions
+* [#2559](https://github.com/http4s/http4s/pull/2559): Add @gvolpe's presentation and http4s-tracer
+
+## Internals
+* [#2525](https://github.com/http4s/http4s/pull/2525): Pointful implementation of `AuthMiddleware.noSpider`
+* [#2534](https://github.com/http4s/http4s/pull/2534): Build with xenial and openjdk8 on Travis CI
+* [#2530](https://github.com/http4s/http4s/pull/2530): Refactoring of `authentication.challenged`
+* [#2531](https://github.com/http4s/http4s/pull/2531): Refactoring of `PushSupport`
+* [#2543](https://github.com/http4s/http4s/pull/2543): Rename maintenance branches to `series/x.y`
+* [#2549](https://github.com/http4s/http4s/pull/2549): Remove workarounds in `BlazeClient` for [typelevel/cats-effect#487](https://github.com/typelevel/cats-effect/issues/487)
+* [#2575](https://github.com/http4s/http4s/pull/2575): Fix the Travis CI release pipeline
+
+## Dependency updates
+* blaze-0.14.2
+* cats-effect-1.3.0
+* jetty-server-9.4.18.v20190429
+* metrics-core-4.1.0
+* sbt-native-packager-1.3.21 (examples only)
+* tomcat-9.0.20
+
 # v0.20.0 (2019-04-22)
 
 ## Announcements

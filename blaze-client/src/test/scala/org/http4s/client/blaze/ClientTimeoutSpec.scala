@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 
 class ClientTimeoutSpec extends Http4sSpec {
 
-  val tickWheel = new TickWheelExecutor
+  val tickWheel = new TickWheelExecutor(tick = 50.millis)
 
   /** the map method allows to "post-process" the fragments after their creation */
   override def map(fs: => Fragments) = super.map(fs) ^ step(tickWheel.shutdown())
@@ -178,7 +178,7 @@ class ClientTimeoutSpec extends Http4sSpec {
       // if the requestTimeout is hit then it's a TimeoutException
       // if establishing connection fails first then it's an IOException
 
-      // The expected behaviour is that the requestTimeout will happen first, but fetchAs will additionally wait for the IO.sleep(2.seconds) to complete.
+      // The expected behaviour is that the requestTimeout will happen first, but fetchAs will additionally wait for the IO.sleep(1000.millis) to complete.
       c.fetchAs[String](FooRequest).unsafeRunTimed(1500.millis).get must throwA[TimeoutException]
     }
   }

@@ -7,12 +7,11 @@ import cats.syntax.functor._
 import com.twitter.finagle.{Http,Service}
 import com.twitter.finagle.http.{Request => Req, Response=>Resp, Method, RequestBuilder}
 import com.twitter.util.{Return, Throw, Future}
-import com.twitter.io.Buf
+import com.twitter.io._
 import cats.syntax.flatMap._
 import fs2.{
   Chunk, Stream
 }
-
 object Finagle {
 
   def allocate[F[_]](svc: Service[Req, Resp])(
@@ -31,26 +30,40 @@ object Finagle {
   }
   def toFinagleReq[F[_]](req: Request[F])(implicit F: ConcurrentEffect[F]):F[Req] = {
     val method = Method(req.method.name)
-    val headers = req.headers.toList.map(h => (h.name.toString, h.value)).toMap
-    val finagleReq = RequestBuilder()
-      .url(req.uri.toString())
-      .addHeaders(headers)
-      .build(method,None)
-
-    req.body.mapChunks{bytes =>
-      finagleReq.write(bytes.toArray)
-      bytes
+    val reqheaders = req.headers.toList.map(h => (h.name.toString, h.value)).toMap
+    val reqBuilder = RequestBuilder().url(req.uri.toString)
+    .addHeaders(reqheaders)
+    (method, req.headers) match {
+      case (Method.Get, _) => F.delay(reqBuilder.buildGet)
+      case (Method.Post, _) if reqheaders.get("Content-Type").map{v =>
+        println("==-------")
+        println(v)
+        v.take(19) == ("multipart/form-data")}.getOrElse(false) =>
+        println("===================")
+                req.as[Array[Byte]].map{_=>
+          val r = reqBuilder
+            .addFormElement(("text","This is text."))
+            .buildFormPost(true)
+                  r
+                }
+      case (Method.Post, _) =>
+        req.as[Array[Byte]].map{b=>
+          val r = reqBuilder.buildPost(Buf.ByteArray.Owned(b))
+          r.setChunked(req.isChunked)
+          r
+        }
+      case (m, _) =>  F.delay(reqBuilder.build(m, None))
     }
-      .compile.drain.map{
-        _ =>
-        finagleReq
-      }
   }
 
   def toHttp4sResp[F[_]](resp: Resp): Response[F] = {
+    def toStream(buf: Buf): Stream[F, Byte] = {
+      Stream.chunk[F, Byte](Chunk.array(Buf.ByteArray.Owned.extract(buf)))
+    }
+    println(s"--${resp.contentString}----${resp.version}---${resp.headerMap}---${resp.isChunked}-----")
     Response[F](
       status = Status(resp.status.code)
-    ).withEntity(Stream.chunk[F, Byte](Chunk.array(Buf.ByteArray.Owned.extract(resp.content))))
+    ).withEntity(toStream(resp.content))
       .withHeaders(Headers(resp.headerMap.toList.map{case (name, value) => Header(name, value)}))
   }
 

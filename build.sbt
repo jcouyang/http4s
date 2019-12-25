@@ -1,3 +1,4 @@
+import com.typesafe.tools.mima.core._
 import org.http4s.build.Http4sPlugin._
 import scala.xml.transform.{RewriteRule, RuleTransformer}
 
@@ -68,14 +69,11 @@ lazy val thirteen = project
     }: _*
   )
 
-val scala_213 = "2.13.0-M5"
-val scala_212 = "2.12.8"
+val scala_212 = "2.12.10"
 val scala_211 = "2.11.12"
 
-
-
 lazy val crossScalaAll = Seq(
-  crossScalaVersions := Seq(scala_213, scala_212, scala_211)
+  crossScalaVersions := Seq(scala_212, scala_211)
 )
 lazy val crossScalaNo213 = Seq(
   crossScalaVersions := Seq(scala_212, scala_211)
@@ -96,7 +94,8 @@ lazy val core = libraryProject("core")
       "https://oss.sonatype.org/content/repositories/snapshots"),
     libraryDependencies ++= Seq(
       cats,
-      fs2Io,
+      catsEffect,
+      fs2Io(scalaVersion.value),
       log4s,
       parboiled,
       vault,
@@ -192,6 +191,10 @@ lazy val blazeCore = libraryProject("blaze-core")
   .settings(
     description := "Base library for binding blaze to http4s clients and servers",
     libraryDependencies += blaze,
+    mimaBinaryIssueFilters ++= List(
+      // Private API
+      ProblemFilters.exclude[IncompatibleMethTypeProblem]("org.http4s.blazecore.ResponseHeaderTimeoutStage.this")
+    ),
   )
   .dependsOn(core, testing % "test->test")
 
@@ -215,7 +218,7 @@ lazy val asyncHttpClient = libraryProject("async-http-client")
     description := "async http client implementation for http4s clients",
     libraryDependencies ++= Seq(
       Http4sPlugin.asyncHttpClient,
-      fs2ReactiveStreams
+      fs2ReactiveStreams(scalaVersion.value),
     )
   )
   .dependsOn(core, testing % "test->test", client % "compile;test->test")

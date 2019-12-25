@@ -1,4 +1,4 @@
-resolvers += "jgit-repo" at "http://download.eclipse.org/jgit/maven"
+resolvers += "jgit-repo" at "https://download.eclipse.org/jgit/maven"
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
 // https://github.com/coursier/coursier/issues/450
@@ -16,12 +16,12 @@ addSbtPlugin("com.timushev.sbt"           %  "sbt-updates"               % "0.4.
 addSbtPlugin("com.typesafe"               %  "sbt-mima-plugin"           % "0.3.0")
 addSbtPlugin("com.typesafe.sbt"           %  "sbt-ghpages"               % "0.6.3")
 addSbtPlugin("com.typesafe.sbt"           %  "sbt-site"                  % "1.3.2")
-addSbtPlugin("com.typesafe.sbt"           %  "sbt-twirl"                 % "1.4.0")
-addSbtPlugin("com.typesafe.sbt"           %  "sbt-native-packager"       % "1.3.20")
+addSbtPlugin("com.typesafe.sbt"           %  "sbt-twirl"                 % "1.4.2")
+addSbtPlugin("com.typesafe.sbt"           %  "sbt-native-packager"       % "1.3.21")
 addSbtPlugin("io.get-coursier"            %  "sbt-coursier"              % "1.0.3")
 addSbtPlugin("io.github.davidgregory084"  %  "sbt-tpolecat"              % "0.1.5")
 addSbtPlugin("io.spray"                   %  "sbt-revolver"              % "0.9.1")
 addSbtPlugin("org.scalastyle"             %% "scalastyle-sbt-plugin"     % "1.0.0")
 addSbtPlugin("org.tpolecat"               %  "tut-plugin"                % "0.6.11")
-addSbtPlugin("org.xerial.sbt"             %  "sbt-sonatype"              % "2.4")
+addSbtPlugin("org.xerial.sbt"             %  "sbt-sonatype"              % "3.7")
 addSbtPlugin("pl.project13.scala"         %  "sbt-jmh"                   % "0.3.6")

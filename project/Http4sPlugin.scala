@@ -7,6 +7,7 @@ import com.typesafe.sbt.SbtGit.git
 import com.typesafe.sbt.SbtPgp.autoImport._
 import com.typesafe.sbt.git.JGit
 import com.typesafe.sbt.pgp.PgpKeys.publishSigned
+import com.typesafe.tools.mima.core.{DirectMissingMethodProblem, ProblemFilters}
 import com.typesafe.tools.mima.plugin.MimaPlugin
 import com.typesafe.tools.mima.plugin.MimaPlugin.autoImport._
 import java.lang.{Runtime => JRuntime}
@@ -20,9 +21,7 @@ object Http4sPlugin extends AutoPlugin {
   object autoImport {
     val isTravisBuild = settingKey[Boolean]("true if this build is running as either a PR or a release build within Travis CI")
     val http4sMimaVersion = settingKey[Option[String]]("Version to target for MiMa compatibility")
-    val http4sPrimary = settingKey[Boolean]("Is this the primary build?")
     val http4sPublish = settingKey[Boolean]("Is this a publishing build?")
-    val http4sMasterBranch = settingKey[Boolean]("Is this the master branch?")
     val http4sApiVersion = taskKey[(Int, Int)]("API version of http4s")
     val http4sJvmTarget = taskKey[String]("JVM target")
     val http4sBuildData = taskKey[Unit]("Export build metadata for Hugo")
@@ -37,7 +36,6 @@ object Http4sPlugin extends AutoPlugin {
     // Many steps only run on one build. We distinguish the primary build from
     // secondary builds by the Travis build number.
     isTravisBuild := sys.env.get("TRAVIS").isDefined,
-    http4sPrimary := sys.env.get("TRAVIS_JOB_NUMBER").fold(true)(_.endsWith(".1")),
     
     // Publishing to gh-pages and sonatype only done from select branches and
     // never from pull requests.
@@ -45,14 +43,8 @@ object Http4sPlugin extends AutoPlugin {
       sys.env.get("TRAVIS").contains("true") &&
         sys.env.get("TRAVIS_PULL_REQUEST").contains("false") &&
         sys.env.get("TRAVIS_REPO_SLUG").contains("http4s/http4s") &&
-        sys.env.get("TRAVIS_JDK_VERSION").contains("oraclejdk8") &&
-        (sys.env.get("TRAVIS_BRANCH") match {
-           case Some("master") => true
-           case Some(branch) if branch.startsWith("series/") => true
-           case _ => false
-         })
+        sys.env.get("TEST").contains("publish")
     },
-    http4sMasterBranch := sys.env.get("TRAVIS_BRANCH").contains("master"),
     ThisBuild / http4sApiVersion := (ThisBuild / version).map {
       case VersionNumber(Seq(major, minor, _*), _, _) => (major.toInt, minor.toInt)
     }.value,
@@ -60,8 +52,8 @@ object Http4sPlugin extends AutoPlugin {
   ) ++ signingSettings
 
   override lazy val projectSettings: Seq[Setting[_]] = Seq(
-    // scalaVersion := (sys.env.get("TRAVIS_SCALA_VERSION") orElse sys.env.get("SCALA_VERSION") getOrElse "2.12.8"),
-    // crossScalaVersions := List("2.11.12", "2.12.8", "2.13.0-M5"),
+    // scalaVersion := (sys.env.get("TRAVIS_SCALA_VERSION") orElse sys.env.get("SCALA_VERSION") getOrElse "2.12.10"),
+    // crossScalaVersions := List("2.11.12", "2.12.10", "2.13.0-M5"),
 
     // Rig will take care of this on production builds.  We haven't fully
     // implemented that machinery yet, so we're going to live without this
@@ -99,17 +91,19 @@ object Http4sPlugin extends AutoPlugin {
       }
     },
     mimaFailOnProblem := http4sMimaVersion.value.isDefined,
-    mimaPreviousArtifacts := (http4sMimaVersion.value map {
+    mimaPreviousArtifacts := (http4sMimaVersion.value.map {
+      case "0.20.5" => "0.20.4" // cursed release
+      case v => v
+    }.map {
       organization.value % s"${moduleName.value}_${scalaBinaryVersion.value}" % _
     }).toSet,
-
-    libraryDependencies += compilerPlugin(
-      CrossVersion.binaryScalaVersion(scalaVersion.value) match {
-        case "2.13.0-M5" => "org.spire-math" %% "kind-projector" % "0.9.9" cross CrossVersion.binary
-        case _ => "org.typelevel" %% "kind-projector" % "0.10.0"
-      }
+    mimaBinaryIssueFilters ++= Seq(
+      ProblemFilters.exclude[DirectMissingMethodProblem]("org.http4s.client.blaze.BlazeClientBuilder.this"),
+      ProblemFilters.exclude[DirectMissingMethodProblem]("org.http4s.client.blaze.Http1Support.this")
     ),
-    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.0-M4"),
+
+    libraryDependencies += compilerPlugin("org.typelevel" %% "kind-projector" % "0.10.0"),
+    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
 
     scalafmtVersion := "1.5.1",
     Test / scalafmt := {
@@ -154,8 +148,6 @@ object Http4sPlugin extends AutoPlugin {
     dependencyUpdatesFilter -= moduleFilter(organization = "org.scalacheck"), // scalacheck-1.14 is incompatible with cats-laws-1.1
     dependencyUpdatesFilter -= moduleFilter(organization = "org.specs2"), // specs2-4.2 is incompatible with scalacheck-1.13
     dependencyUpdatesFilter -= moduleFilter(organization = "org.typelevel", name = "discipline"), // discipline-0.10 is incompatible with scalacheck-1.13
-    dependencyUpdatesFilter -= moduleFilter(organization = "org.typelevel", name = "cats-effect"),
-    dependencyUpdatesFilter -= moduleFilter(organization = "org.typelevel", name = "cats-effect-laws"),
   ) ++ releaseSettings
 
   val releaseSettings = Seq(
@@ -184,28 +176,19 @@ object Http4sPlugin extends AutoPlugin {
 
       val release = !isSnapshot.value
       val publishable = http4sPublish.value
-      val primary = http4sPrimary.value
-      val master = http4sMasterBranch.value
 
       Seq(
         checkSnapshotDependencies.when(release),
         inquireVersions.when(release),
         setReleaseVersion.when(release),
-        tagRelease.when(primary && release),
+        tagRelease.when(publishable && release),
         runClean,
-        // runTest,
         releaseStepCommandAndRemaining("+mimaReportBinaryIssues"),
-        // releaseStepCommand("unusedCompileDependenciesTest"),
-        // releaseStepCommand("test:scalafmt::test").when(primary),
-        // releaseStepCommand("docs/makeSite").when(primary),
-        // releaseStepCommand("website/makeSite").when(primary),
         releaseStepCommandAndRemaining("+publishSigned").when(publishable),
-        releaseStepCommand("sonatypeReleaseAll").when(publishable && release),
-        // releaseStepCommand("docs/ghpagesPushSite").when(publishable && primary),
-        // releaseStepCommand("website/ghpagesPushSite").when(publishable && primary && master),
-        setNextVersion.when(publishable && primary && release),
-        commitNextVersion.when(publishable && primary && release),
-        pushChanges.when(publishable && primary && release),
+        releaseStepCommand("sonatypeBundleRelease").when(publishable && release),
+        setNextVersion.when(publishable && release),
+        commitNextVersion.when(publishable && release),
+        pushChanges.when(publishable && release),
         // We need a superfluous final step to ensure exit code
         // propagation from failed steps above.
         //
@@ -303,45 +286,49 @@ object Http4sPlugin extends AutoPlugin {
   def specs2Version(scalaVersion: String): String =
     if (priorTo2_13(scalaVersion)) "4.1.0" else "4.4.1"
 
+  def fs2Version(scalaVersion: String): String =
+    if (priorTo2_13(scalaVersion)) "1.0.5" else "1.0.4"
+
   lazy val alpnBoot                         = "org.mortbay.jetty.alpn" %  "alpn-boot"                 % "8.1.13.v20181017"
   lazy val argonaut                         = "io.argonaut"            %% "argonaut"                  % "6.2.3"
   lazy val asyncHttpClient                  = "org.asynchttpclient"    %  "async-http-client"         % "2.8.1"
-  lazy val finagle                  = "com.twitter" %% "finagle-http" % "19.4.0"
-  lazy val blaze                            = "org.http4s"             %% "blaze-http"                % "0.14.0"
-  lazy val boopickle                        = "io.suzaku"              %% "boopickle"                 % "1.3.0"
-  lazy val cats                             = "org.typelevel"          %% "cats-core"                 % "1.6.0"
-  lazy val catsEffect                       = "org.typelevel"          %% "cats-effect"               % "1.1.0"
+  lazy val blaze                            = "org.http4s"             %% "blaze-http"                % "0.14.11"
+  lazy val finagle                  = "com.twitter" %% "finagle-http" % "19.12.0"
+
+  lazy val boopickle                        = "io.suzaku"              %% "boopickle"                 % "1.3.1"
+  lazy val cats                             = "org.typelevel"          %% "cats-core"                 % "1.6.1"
+  lazy val catsEffect                       = "org.typelevel"          %% "cats-effect"               % "1.4.0"
   lazy val catsEffectLaws                   = "org.typelevel"          %% "cats-effect-laws"          % catsEffect.revision
   lazy val catsKernelLaws                   = "org.typelevel"          %% "cats-kernel-laws"          % cats.revision
   lazy val catsLaws                         = "org.typelevel"          %% "cats-laws"                 % cats.revision
-  lazy val circeGeneric                     = "io.circe"               %% "circe-generic"             % circeJawn.revision
-  lazy val circeJawn                        = "io.circe"               %% "circe-jawn"                % "0.11.1"
+  lazy val circeGeneric                     = "io.circe"               %% "circe-generic"             % "0.11.2"
+  lazy val circeJawn                        = "io.circe"               %% "circe-jawn"                % "0.11.2"
   lazy val circeLiteral                     = "io.circe"               %% "circe-literal"             % circeJawn.revision
   lazy val circeParser                      = "io.circe"               %% "circe-parser"              % circeJawn.revision
   lazy val circeTesting                     = "io.circe"               %% "circe-testing"             % circeJawn.revision
   lazy val cryptobits                       = "org.reactormonk"        %% "cryptobits"                % "1.2"
-  lazy val dropwizardMetricsCore            = "io.dropwizard.metrics"  %  "metrics-core"              % "4.0.5"
+  lazy val dropwizardMetricsCore            = "io.dropwizard.metrics"  %  "metrics-core"              % "4.1.1"
   lazy val dropwizardMetricsJson            = "io.dropwizard.metrics"  %  "metrics-json"              % dropwizardMetricsCore.revision
   def discipline(sv: String)                = "org.typelevel"          %% "discipline"                % disciplineVersion(sv)
-  lazy val fs2Io                            = "co.fs2"                 %% "fs2-io"                    % "1.0.4"
-  lazy val fs2ReactiveStreams               = "co.fs2"                 %% "fs2-reactive-streams"      % fs2Io.revision
+  def fs2Io(sv: String)                     = "co.fs2"                 %% "fs2-io"                    % fs2Version(sv)
+  def fs2ReactiveStreams(sv: String)        = "co.fs2"                 %% "fs2-reactive-streams"      % fs2Version(sv)
   lazy val javaxServletApi                  = "javax.servlet"          %  "javax.servlet-api"         % "3.1.0"
   lazy val jawnFs2                          = "org.http4s"             %% "jawn-fs2"                  % "0.14.2"
-  lazy val jawnJson4s                       = "org.typelevel"          %% "jawn-json4s"               % "0.14.1"
-  lazy val jawnPlay                         = "org.typelevel"          %% "jawn-play"                 % "0.14.1"
-  lazy val jettyClient                      = "org.eclipse.jetty"      %  "jetty-client"              % "9.4.18.v20190429"
+  lazy val jawnJson4s                       = "org.typelevel"          %% "jawn-json4s"               % "0.14.3"
+  lazy val jawnPlay                         = "org.typelevel"          %% "jawn-play"                 % "0.14.3"
+  lazy val jettyClient                      = "org.eclipse.jetty"      %  "jetty-client"              % "9.4.24.v20191120"
   lazy val jettyRunner                      = "org.eclipse.jetty"      %  "jetty-runner"              % jettyServer.revision
-  lazy val jettyServer                      = "org.eclipse.jetty"      %  "jetty-server"              % "9.4.18.v20190429"
+  lazy val jettyServer                      = "org.eclipse.jetty"      %  "jetty-server"              % "9.4.24.v20191120"
   lazy val jettyServlet                     = "org.eclipse.jetty"      %  "jetty-servlet"             % jettyServer.revision
-  lazy val json4sCore                       = "org.json4s"             %% "json4s-core"               % "3.6.5"
+  lazy val json4sCore                       = "org.json4s"             %% "json4s-core"               % "3.6.7"
   lazy val json4sJackson                    = "org.json4s"             %% "json4s-jackson"            % json4sCore.revision
   lazy val json4sNative                     = "org.json4s"             %% "json4s-native"             % json4sCore.revision
   lazy val jspApi                           = "javax.servlet.jsp"      %  "javax.servlet.jsp-api"     % "2.3.3" // YourKit hack
   lazy val log4s                            = "org.log4s"              %% "log4s"                     % "1.7.0"
   lazy val logbackClassic                   = "ch.qos.logback"         %  "logback-classic"           % "1.2.3"
   lazy val mockito                          = "org.mockito"            %  "mockito-core"              % "2.27.0"
-  lazy val okhttp                           = "com.squareup.okhttp3"   %  "okhttp"                    % "3.14.1"
-  lazy val playJson                         = "com.typesafe.play"      %% "play-json"                 % "2.7.2"
+  lazy val okhttp                           = "com.squareup.okhttp3"   %  "okhttp"                    % "3.14.4"
+  lazy val playJson                         = "com.typesafe.play"      %% "play-json"                 % "2.7.4"
   lazy val prometheusClient                 = "io.prometheus"          %  "simpleclient"              % "0.6.0"
   lazy val prometheusCommon                 = "io.prometheus"          %  "simpleclient_common"       % prometheusClient.revision
   lazy val prometheusHotspot                = "io.prometheus"          %  "simpleclient_hotspot"      % prometheusClient.revision
@@ -356,9 +343,9 @@ object Http4sPlugin extends AutoPlugin {
   def specs2Matcher(sv: String)             = "org.specs2"             %% "specs2-matcher"            % specs2Version(sv)
   def specs2MatcherExtra(sv: String)        = "org.specs2"             %% "specs2-matcher-extra"      % specs2Version(sv)
   def specs2Scalacheck(sv: String)          = "org.specs2"             %% "specs2-scalacheck"         % specs2Version(sv)
-  lazy val treeHugger                       = "com.eed3si9n"           %% "treehugger"                % "0.4.3"
-  lazy val tomcatCatalina                   = "org.apache.tomcat"      %  "tomcat-catalina"           % "9.0.19"
+  lazy val tomcatCatalina                   = "org.apache.tomcat"      %  "tomcat-catalina"           % "9.0.29"
   lazy val tomcatCoyote                     = "org.apache.tomcat"      %  "tomcat-coyote"             % tomcatCatalina.revision
-  lazy val twirlApi                         = "com.typesafe.play"      %% "twirl-api"                 % "1.4.0"
+  lazy val treeHugger                       = "com.eed3si9n"           %% "treehugger"                % "0.4.4"
+  lazy val twirlApi                         = "com.typesafe.play"      %% "twirl-api"                 % "1.4.2"
   lazy val vault                            = "io.chrisdavenport"      %% "vault"                     % "1.0.0"
 }

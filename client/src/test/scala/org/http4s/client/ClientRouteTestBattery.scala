@@ -36,7 +36,7 @@ abstract class ClientRouteTestBattery(name: String) extends Http4sSpec with Http
   }
 
   withResource(JettyScaffold[IO](1, false, testServlet)) { jetty =>
-    withResource(clientResourceGen(s"${jetty.addresses.head.getHostName}:${jetty.addresses.head.getPort}")) { client =>
+    withResource(clientResourceGen(s"localhost:${jetty.addresses.head.getPort}")) { client =>
       val address = jetty.addresses.head
       Fragments.foreach(GetRoutes.getPaths.toSeq) {
         case (path, expected) =>
